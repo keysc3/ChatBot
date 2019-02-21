@@ -54,27 +54,16 @@ public class MyListener extends ListenerAdapter {
                 return;
             
         try {
-            //Open database connection
-            Connection conn = dbOps.getConnection();
-            
-            //Don't track test messages
-            if(!channelName.equals("test"))
-                dbOps.recordMessage(event, conn);
-            
-            //Only check messages starting with the bots prefix
-            if(!msg.startsWith(ChatBot.config.getProperty("prefix")))
-                    return;
-            
-            //Command specific information
             ArrayList<String> args = new ArrayList<>(Arrays.asList(msg.split(" ")));
-            String command = args.get(0).substring(1);
+            String command = args.get(0);
             args.remove(0);
             int numArgs = args.size();
+            Connection conn;
             
             //Switch to check for commands
             switch(command){
                 //Output overall/user message stats for the channel
-                case "stats":
+                case "!stats":
                     //Only want one argument max
                     if(numArgs > 1){
                         event.getChannel().sendMessage("Please provide only one user/argument").queue();
@@ -82,10 +71,12 @@ public class MyListener extends ListenerAdapter {
                     }
                     //Output overall message stats
                     if(numArgs == 0){
+                        conn = DatabaseOps.getConnection();
                         //Get top users and channels, format output
-                        ResultSet userResults = dbOps.topMessageSenders(conn);
-                        ResultSet channelResults = dbOps.topChannels(conn);
+                        ResultSet userResults = dbOps.topMessageSenders(guild.getId(), conn);
+                        ResultSet channelResults = dbOps.topChannels(guild.getId(), conn);
                         EmbedBuilder outputResults = outputMessageStats(guild, userResults, channelResults);
+                        conn.close();
                         event.getChannel().sendMessage(outputResults.build()).queue();
                         break;
                     }
@@ -103,16 +94,18 @@ public class MyListener extends ListenerAdapter {
                             event.getChannel().sendMessage("Sorry, my messages aren't being tracked!").queue();
                             break;
                         }
+                        conn = DatabaseOps.getConnection();
                         //Get users total messages sent and amount sent to channels
-                        ResultSet userTotal = dbOps.userTotal(user.getId(), conn);
-                        ResultSet userChannel = dbOps.userPerChannel(user.getId(), conn);
+                        ResultSet userTotal = dbOps.userTotal(user.getId(), guild.getId(), conn);
+                        ResultSet userChannel = dbOps.userPerChannel(user.getId(), guild.getId(), conn);
                         EmbedBuilder outputResults = outputUserStats(user, userTotal, userChannel);
+                        conn.close();
                         event.getChannel().sendMessage(outputResults.build()).queue();
                         break;
                     }
                     break;
                 //Delete messages from channel, up to 10 at a time
-                case "delete":
+                case "!delete":
                     //Make sure a number is given, <= 10
                     if(numArgs < 1 || !StringUtils.isNumericSpace(args.get(0)) || Integer.valueOf(args.get(0)) > 10){
                         event.getChannel().sendMessage("Error deleting messages! Please provide an amount less than 10").queue();
@@ -130,10 +123,17 @@ public class MyListener extends ListenerAdapter {
                     for (Message message : msgList)
                         message.delete().queue();
                     break;
+                default:
+                    //Open database connection
+                    conn = DatabaseOps.getConnection();
+                    System.out.println("Connected!");
+                    //Don't track test messages
+                    if(!channelName.equals("test"))
+                        dbOps.recordMessage(event, conn);
+                    //Close database connection
+                    conn.close();
+                    break;
             }
-            
-            //Close database connection
-            conn.close();
           
         } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | SQLException ex) {
             Logger.getLogger(MyListener.class.getName()).log(Level.SEVERE, null, ex);
