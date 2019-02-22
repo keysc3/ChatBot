@@ -137,6 +137,23 @@ public class DatabaseOps {
     }
     
     /**
+     * topSerbers - Get the Top 5 servers by amount of messages sent
+     * @param conn- connection to the wanted database
+     * @return ResultSet - A ResultSet of the query results to be iterated over
+     * @throws SQLException
+     */
+    public ResultSet topServers(Connection conn) throws SQLException{
+        //Select the top 5 servers
+        PreparedStatement prepState = conn.prepareStatement("select S.Name, count(M.UserID) as TotalMsg "
+                + "from server as S, messages as M "
+                + "where S.ServerID = M.ServerID "
+                + "group by S.ServerID order by TotalMsg desc "
+                + "limit 5;");
+        
+        return prepState.executeQuery();
+    }
+    
+    /**
      * topMessageSenders - Get the Top 5 users who have sent the most messages across
      * all tracked channels in the specific server
      * @param conn- connection to the wanted database
