@@ -5,6 +5,7 @@
  */
 package chatbot;
 
+import com.vdurmont.emoji.EmojiManager;
 import java.awt.Color;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -83,25 +84,36 @@ public class MyListener extends ListenerAdapter {
                     //Output user message stats
                     if(numArgs == 1){
                         //Need a user to be mentiond
-                        if(sentMessage.getMentionedUsers().isEmpty()){
-                            event.getChannel().sendMessage("Please mention a user instead of just typing it!").queue();
+                        if(sentMessage.getMentionedUsers().isEmpty() && !args.get(0).equals("servers")){
+                            event.getChannel().sendMessage("Please mention a user or use 'servers' argument!").queue();
                             break;
                         }
-                        //Get user mentioned, make sure it isnt a bot
-                        List<User> mentionedUsers = sentMessage.getMentionedUsers();
-                        User user = mentionedUsers.get(0);
-                        if(user.isBot()){
-                            event.getChannel().sendMessage("Sorry, my messages aren't being tracked!").queue();
+                        if(!sentMessage.getMentionedUsers().isEmpty()){
+                            //Get user mentioned, make sure it isnt a bot
+                            List<User> mentionedUsers = sentMessage.getMentionedUsers();
+                            User user = mentionedUsers.get(0);
+                            if(user.isBot()){
+                                event.getChannel().sendMessage("Sorry, my messages aren't being tracked!").queue();
+                                break;
+                            }
+                            conn = DatabaseOps.getConnection();
+                            //Get users total messages sent and amount sent to channels
+                            ResultSet userTotal = dbOps.userTotal(user.getId(), guild.getId(), conn);
+                            ResultSet userChannel = dbOps.userPerChannel(user.getId(), guild.getId(), conn);
+                            EmbedBuilder outputResults = outputUserStats(user, userTotal, userChannel);
+                            conn.close();
+                            event.getChannel().sendMessage(outputResults.build()).queue();
                             break;
                         }
-                        conn = DatabaseOps.getConnection();
-                        //Get users total messages sent and amount sent to channels
-                        ResultSet userTotal = dbOps.userTotal(user.getId(), guild.getId(), conn);
-                        ResultSet userChannel = dbOps.userPerChannel(user.getId(), guild.getId(), conn);
-                        EmbedBuilder outputResults = outputUserStats(user, userTotal, userChannel);
-                        conn.close();
-                        event.getChannel().sendMessage(outputResults.build()).queue();
-                        break;
+                        else{
+                            conn = DatabaseOps.getConnection();
+                            //Get users total messages sent and amount sent to channels
+                            ResultSet serverTotal = dbOps.topServers(conn);
+                            EmbedBuilder outputResults = outputAllServers(serverTotal);
+                            conn.close();
+                            event.getChannel().sendMessage(outputResults.build()).queue();
+                            break;
+                        }
                     }
                     break;
                 //Delete messages from channel, up to 10 at a time
@@ -126,12 +138,15 @@ public class MyListener extends ListenerAdapter {
                 default:
                     //Open database connection
                     conn = DatabaseOps.getConnection();
-                    System.out.println("Connected!");
+                    //System.out.println("Connected!");
                     //Don't track test messages
                     if(!channelName.equals("test"))
-                        dbOps.recordMessage(event, conn);
+                        //dbOps.recordMessage(event, conn);
                     //Close database connection
                     conn.close();
+                    //Screw with Jeff
+                    if(sentMessage.getAuthor().getId().equals("412643732199047171"))
+                        sentMessage.addReaction(EmojiManager.getForAlias("eggplant").getUnicode()).queue();
                     break;
             }
           
@@ -228,6 +243,36 @@ public class MyListener extends ListenerAdapter {
         eb.addField("Messages Per Channel", userUsedChannels.toString(), true);
         eb.setFooter("Made by ExplodingMuffins", "https://cdn.discordapp.com/avatars/123205408528662529/929fc31d35ce73ec8f337c47df3d955e.png");
                 
+        return eb;
+    }
+    
+    /**
+     * Purpose: Build the embed message for all servers statistics
+     * @param serverResults - top 5 servers and the number of messages they received
+     * @return eb - embed message to output to the channel
+     * @throws java.sql.SQLException
+     */
+    private EmbedBuilder outputAllServers(ResultSet serverResults) throws SQLException{
+        //Variables for formatting output
+        EmbedBuilder eb = new EmbedBuilder();
+        StringBuilder topServers = new StringBuilder();
+        int i = 1;
+        
+        //Server the statistics are for and color of embed message
+        eb.setAuthor("All Servers Chat Stats", null, null);
+        eb.setColor(Color.red);
+        
+        //Iterate over user ResultSet and format output
+        while(serverResults.next()){
+            topServers.append(String.valueOf(i)).append(". ")
+                    .append(serverResults.getString("Name")).append(": ")
+                    .append(serverResults.getString("TotalMsg")).append("\n");
+            i++;
+        }
+        //Format embed output
+        eb.addField("Talkative Servers", topServers.toString(), true);
+        eb.setFooter("Made by ExplodingMuffins", "https://cdn.discordapp.com/avatars/123205408528662529/929fc31d35ce73ec8f337c47df3d955e.png");
+        
         return eb;
     }
     
