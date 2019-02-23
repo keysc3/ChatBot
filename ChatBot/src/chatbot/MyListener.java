@@ -15,6 +15,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
+import java.util.Random;
 import net.dv8tion.jda.core.EmbedBuilder;
 import net.dv8tion.jda.core.entities.Guild;
 import net.dv8tion.jda.core.entities.Member;
@@ -42,6 +44,8 @@ import org.apache.commons.lang3.StringUtils;
  */
 public class MyListener extends ListenerAdapter {
     private final DatabaseOps dbOps = new DatabaseOps();
+    private final List<String> userGreetings = Arrays.asList("hello", "hi", "greetings", "hey", "bonjour");
+    private final List<String> botGreetings = Arrays.asList("suhhh dood", "Hi There!", "Hello!", "Howdy!", "The fuck you want?", "It's lit", "yooooo");
     @Override
     public void onMessageReceived(MessageReceivedEvent event){
             //Even Specific information
@@ -136,12 +140,20 @@ public class MyListener extends ListenerAdapter {
                         message.delete().queue();
                     break;
                 default:
+                    //Respond to hellos
+                    if(!sentMessage.getMentionedUsers().isEmpty() && !sentMessage.getMentionedUsers().get(0).getId().equals("546622509718437897")){
+                        for(String greeting : userGreetings) {
+                            Pattern pattern = Pattern.compile(greeting + ".{0,2}");
+                            if(pattern.matcher(command.toLowerCase()).matches())
+                                event.getChannel().sendMessage(botGreetings.get(new Random().nextInt(botGreetings.size()))).queue();
+                        }
+                    }
                     //Open database connection
                     conn = DatabaseOps.getConnection();
                     //System.out.println("Connected!");
                     //Don't track test messages
                     if(!channelName.equals("test"))
-                        //dbOps.recordMessage(event, conn);
+                        dbOps.recordMessage(event, conn);
                     //Close database connection
                     conn.close();
                     //Screw with Jeff
